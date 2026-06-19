@@ -154,6 +154,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="content">
+  <div id="storage-warn" class="hidden" style="background:#FAEEDA;border:1px solid #EF9F27;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--amber-dark);line-height:1.5;">
+    ⚠️ <b>Atenção:</b> o armazenamento do app pode ser limitado. Use o botão <b>Exportar backup</b> regularmente para não perder dados.
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="exportarBackup()" style="flex:1;padding:8px;font-size:12px;background:var(--green-bg);border:1px solid var(--green-dark);color:var(--green-deep);border-radius:var(--radius-sm);cursor:pointer;font-weight:500;">📤 Exportar backup</button>
+    <button onclick="document.getElementById('import-input').click()" style="flex:1;padding:8px;font-size:12px;background:var(--blue-bg);border:1px solid var(--blue);color:var(--blue-dark);border-radius:var(--radius-sm);cursor:pointer;font-weight:500;">📥 Importar backup</button>
+  </div>
+  <input type="file" id="import-input" accept=".json" class="hidden" onchange="importarBackup(event)"/>
   <div id="install-banner" class="install-banner hidden">
     <p>Instale o app na sua tela inicial!</p>
     <button onclick="installApp()">Instalar</button>
@@ -298,7 +306,73 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="toast" id="toast"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js">
+// ── Persistência robusta ────────────────────────────────────────────────────
+async function solicitarPersistencia(){
+  if(navigator.storage && navigator.storage.persist){
+    const granted = await navigator.storage.persist();
+    if(!granted){
+      document.getElementById('storage-warn').classList.remove('hidden');
+    }
+  }
+}
+
+function exportarBackup(){
+  const dados = carregar();
+  if(!dados.length){ showToast('Nenhum dado para exportar'); return; }
+  const json = JSON.stringify({versao:'v3', exportado: new Date().toISOString(), dados}, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const data = new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  a.href = url;
+  a.download = `financas-backup-${data}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado!');
+}
+
+function importarBackup(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try{
+      const obj = JSON.parse(ev.target.result);
+      const dados = obj.dados || obj; // suporta array direto ou objeto com .dados
+      if(!Array.isArray(dados)) throw new Error('Formato inválido');
+      const atuais = carregar();
+      // Merge: importa apenas IDs que não existem ainda
+      const idsAtuais = new Set(atuais.map(d=>d.id));
+      const novos = dados.filter(d=>!idsAtuais.has(d.id));
+      salvar([...atuais, ...novos]);
+      renderTudo();
+      showToast(`${novos.length} lançamento(s) importado(s)!`);
+    }catch(err){
+      showToast('Arquivo inválido');
+    }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// Auto-backup aviso a cada 7 dias
+function verificarAvisoBackup(){
+  const ultima = localStorage.getItem('ultimo_aviso_backup');
+  const agora = Date.now();
+  if(!ultima || agora - parseInt(ultima) > 7*24*60*60*1000){
+    const dados = carregar();
+    if(dados.length > 0){
+      localStorage.setItem('ultimo_aviso_backup', agora.toString());
+      setTimeout(()=> showToast('💾 Lembre-se de exportar seu backup!'), 3000);
+    }
+  }
+}
+
+solicitarPersistencia();
+verificarAvisoBackup();
+
+</script>
 <script>
 const SK='financas_pwa_v3';
 let tipo='receita', filtro='todos', graficoTipo='despesa';
@@ -710,6 +784,72 @@ document.getElementById('periodo-de').value=mesKey(m6);
 document.getElementById('periodo-ate').value=mesKey(now);
 setTipo('receita');
 renderTudo();
+
+// ── Persistência robusta ────────────────────────────────────────────────────
+async function solicitarPersistencia(){
+  if(navigator.storage && navigator.storage.persist){
+    const granted = await navigator.storage.persist();
+    if(!granted){
+      document.getElementById('storage-warn').classList.remove('hidden');
+    }
+  }
+}
+
+function exportarBackup(){
+  const dados = carregar();
+  if(!dados.length){ showToast('Nenhum dado para exportar'); return; }
+  const json = JSON.stringify({versao:'v3', exportado: new Date().toISOString(), dados}, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const data = new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  a.href = url;
+  a.download = `financas-backup-${data}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado!');
+}
+
+function importarBackup(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try{
+      const obj = JSON.parse(ev.target.result);
+      const dados = obj.dados || obj; // suporta array direto ou objeto com .dados
+      if(!Array.isArray(dados)) throw new Error('Formato inválido');
+      const atuais = carregar();
+      // Merge: importa apenas IDs que não existem ainda
+      const idsAtuais = new Set(atuais.map(d=>d.id));
+      const novos = dados.filter(d=>!idsAtuais.has(d.id));
+      salvar([...atuais, ...novos]);
+      renderTudo();
+      showToast(`${novos.length} lançamento(s) importado(s)!`);
+    }catch(err){
+      showToast('Arquivo inválido');
+    }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// Auto-backup aviso a cada 7 dias
+function verificarAvisoBackup(){
+  const ultima = localStorage.getItem('ultimo_aviso_backup');
+  const agora = Date.now();
+  if(!ultima || agora - parseInt(ultima) > 7*24*60*60*1000){
+    const dados = carregar();
+    if(dados.length > 0){
+      localStorage.setItem('ultimo_aviso_backup', agora.toString());
+      setTimeout(()=> showToast('💾 Lembre-se de exportar seu backup!'), 3000);
+    }
+  }
+}
+
+solicitarPersistencia();
+verificarAvisoBackup();
+
 </script>
 </body>
 </html>
