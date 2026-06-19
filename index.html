@@ -170,6 +170,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- ABA LISTA -->
   <div id="tab-lancamentos">
     <div id="alertas-venc"></div>
+    <!-- Seletor de mês inline -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;">
+      <button onclick="navegarMes(-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);">‹</button>
+      <div style="text-align:center;flex:1;">
+        <div style="font-size:14px;font-weight:500;color:var(--text);" id="lista-mes-label">Jun 2026</div>
+        <div style="font-size:11px;color:var(--text3);" id="lista-mes-total"></div>
+      </div>
+      <button onclick="navegarMes(1)" id="btn-mes-next" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);">›</button>
+    </div>
     <div class="filtros">
       <button class="filtro-btn ativo" onclick="setFiltro('todos',this)">Todos</button>
       <button class="filtro-btn" onclick="setFiltro('receita',this)">Receitas</button>
@@ -490,6 +499,15 @@ function ciclaMes(){
   renderTudo();
 }
 
+function navegarMes(dir){
+  mesAtual=new Date(mesAtual.getFullYear(),mesAtual.getMonth()+dir,1);
+  renderTudo();
+  const now=new Date();
+  const diff=(now.getFullYear()-mesAtual.getFullYear())*12+(now.getMonth()-mesAtual.getMonth());
+  const btn=document.getElementById('btn-mes-next');
+  if(btn){ btn.style.opacity=diff<=0?'0.3':'1'; btn.style.pointerEvents=diff<=0?'none':'auto'; }
+}
+
 function addLancamento(){
   const desc=document.getElementById('desc').value.trim();
   const valor=parseFloat(document.getElementById('valor').value);
@@ -555,7 +573,17 @@ function renderTudo(){
   sv.style.color=saldo<0?'#F09595':'#fff';
   document.getElementById('total-rec').textContent=fmt(rec);
   document.getElementById('total-desp').textContent=fmt(desp);
-  document.getElementById('mes-label').textContent=mesStr(mesAtual).replace('de ',' ').replace('. de',' ').toUpperCase();
+  const mesLabelStr = mesStr(mesAtual);
+  document.getElementById('mes-label').textContent=mesLabelStr.replace('de ',' ').replace('. de',' ').toUpperCase();
+  const listaLabel=document.getElementById('lista-mes-label');
+  if(listaLabel) listaLabel.textContent=mesAtual.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const listaTot=document.getElementById('lista-mes-total');
+  if(listaTot){
+    const dM=dadosMes();
+    const rM=dM.filter(d=>d.tipo==='receita').reduce((s,d)=>s+d.valor,0);
+    const dpM=dM.filter(d=>d.tipo==='despesa').reduce((s,d)=>s+d.valor,0);
+    listaTot.textContent=dM.length+' lançamento(s) · saldo '+fmt(rM-dpM);
+  }
   renderAlertas();
   renderLista();
 }
